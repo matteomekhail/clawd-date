@@ -11,7 +11,27 @@ export const like = mutation({
       )
       .first();
     if (existing) return existing._id;
-    return ctx.db.insert("likes", { fromUserId, toUserId });
+
+    const likeId = await ctx.db.insert("likes", { fromUserId, toUserId });
+
+    const reciprocal = await ctx.db
+      .query("likes")
+      .withIndex("by_pair", (q) =>
+        q.eq("fromUserId", toUserId).eq("toUserId", fromUserId),
+      )
+      .first();
+    if (reciprocal) {
+      await ctx.db.insert("notifications", {
+        userId: fromUserId,
+        matchUserId: toUserId,
+      });
+      await ctx.db.insert("notifications", {
+        userId: toUserId,
+        matchUserId: fromUserId,
+      });
+    }
+
+    return likeId;
   },
 });
 

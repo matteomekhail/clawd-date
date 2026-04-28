@@ -27,4 +27,10 @@ export default defineSchema({
     .index("by_from", ["fromUserId"])
     .index("by_to", ["toUserId"])
     .index("by_pair", ["fromUserId", "toUserId"]),
+
+  notifications: defineTable({
+    userId: v.id("users"),
+    matchUserId: v.id("users"),
+    readAt: v.optional(v.number()),
+  }).index("by_user", ["userId"]),
 });

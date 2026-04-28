@@ -1,4 +1,5 @@
 import { build, context } from "esbuild";
+import { chmodSync } from "node:fs";
 
 const watch = process.argv.includes("--watch");
 
@@ -15,10 +16,9 @@ const common = {
 };
 
 const entries = [
-  { entryPoints: ["src/index.ts"], outExtension: { ".js": ".js" } },
+  { entryPoints: ["src/index.ts"] },
   {
     entryPoints: ["src/bin.ts"],
-    outExtension: { ".js": ".js" },
     banner: { js: "#!/usr/bin/env node" },
   },
 ];
@@ -31,5 +31,10 @@ if (watch) {
 } else {
   for (const e of entries) {
     await build({ ...common, ...e });
+  }
+  try {
+    chmodSync("dist/bin.js", 0o755);
+  } catch {
+    /* file may not exist yet */
   }
 }

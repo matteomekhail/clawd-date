@@ -37,4 +37,40 @@ http.route({
   }),
 });
 
+http.route({
+  path: "/matches/unread",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const url = new URL(request.url);
+    const githubId = url.searchParams.get("githubId");
+    if (!githubId) {
+      return new Response(JSON.stringify({ error: "missing githubId" }), {
+        status: 400,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    const matches = await ctx.runQuery(api.notifications.unreadForGithubId, {
+      githubId,
+    });
+    return new Response(JSON.stringify({ matches }), {
+      headers: { "content-type": "application/json" },
+    });
+  }),
+});
+
+http.route({
+  path: "/matches/markRead",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const body = (await request.json()) as { githubId: string };
+    const count = await ctx.runMutation(
+      api.notifications.markAllReadForGithubId,
+      { githubId: body.githubId },
+    );
+    return new Response(JSON.stringify({ ok: true, count }), {
+      headers: { "content-type": "application/json" },
+    });
+  }),
+});
+
 export default http;

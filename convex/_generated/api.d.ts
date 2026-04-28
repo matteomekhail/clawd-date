@@ -10,6 +10,7 @@
 
 import type * as http from "../http.js";
 import type * as matches from "../matches.js";
+import type * as notifications from "../notifications.js";
 import type * as sessions from "../sessions.js";
 import type * as users from "../users.js";
 
@@ -22,6 +23,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   http: typeof http;
   matches: typeof matches;
+  notifications: typeof notifications;
   sessions: typeof sessions;
   users: typeof users;
 }>;
