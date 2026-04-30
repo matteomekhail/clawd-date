@@ -1,6 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename } from "node:path";
-import type { SessionPayload } from "@clawd-date/shared";
+
+interface SessionPayload {
+  project: string;
+  languages: string[];
+  tools: string[];
+  summary: string;
+  occurredAt: number;
+}
 
 const EXT_TO_LANGUAGE: Record<string, string> = {
   ts: "TypeScript",

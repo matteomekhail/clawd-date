@@ -23,9 +23,6 @@ importers:
 
   apps/skill:
     dependencies:
-      '@clawd-date/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       ink:
         specifier: ^6.0.1
         version: 6.8.0(@types/react@19.2.14)(react@19.2.5)

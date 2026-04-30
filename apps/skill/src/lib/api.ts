@@ -1,4 +1,19 @@
-import type { IngestPayload } from "@clawd-date/shared";
+interface SessionPayload {
+  project: string;
+  languages: string[];
+  tools: string[];
+  summary: string;
+  occurredAt: number;
+}
+
+interface IngestPayload {
+  profile: {
+    languages: string[];
+    tools: string[];
+    bio?: string;
+  };
+  sessions: SessionPayload[];
+}
 
 export interface UnreadMatch {
   id: string;
