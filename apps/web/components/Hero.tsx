@@ -90,8 +90,18 @@ function CTAs() {
     <div className="animate-fade-up [animation-delay:480ms] mt-9 sm:mt-10 flex flex-wrap items-center gap-x-6 gap-y-4">
       <div className="inline-flex items-center gap-2 bg-ink text-bone px-3 py-1.5 text-[13px] tracking-tight font-mono select-all">
         <span aria-hidden className="text-amber/85">$</span>
-        <span>clawd-date init</span>
+        <span>npx clawd-date init</span>
       </div>
+
+      <a
+        href="/install"
+        className="group inline-flex items-center gap-1.5 border-b border-ink/40 pb-1 text-[13px] tracking-tight text-ink transition-colors hover:border-oxblood hover:text-oxblood"
+      >
+        <span>install in 30 seconds</span>
+        <span aria-hidden className="transition-transform group-hover:translate-x-0.5">
+          ↗
+        </span>
+      </a>
 
       <a
         href="/how-matching-works"

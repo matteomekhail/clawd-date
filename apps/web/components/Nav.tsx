@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 type NavProps = {
-  current?: "home" | "how";
+  current?: "home" | "how" | "install";
 };
 
 export function Nav({ current }: NavProps) {
@@ -14,17 +14,30 @@ export function Nav({ current }: NavProps) {
       >
         <Logomark />
       </Link>
-      <Link
-        href="/how-matching-works"
-        aria-current={current === "how" ? "page" : undefined}
-        className={
-          current === "how"
-            ? "text-ink font-bold"
-            : "hover:text-oxblood transition-colors"
-        }
-      >
-        how it works
-      </Link>
+      <div className="flex items-center gap-6 sm:gap-8">
+        <Link
+          href="/install"
+          aria-current={current === "install" ? "page" : undefined}
+          className={
+            current === "install"
+              ? "text-ink font-bold"
+              : "hover:text-oxblood transition-colors"
+          }
+        >
+          install
+        </Link>
+        <Link
+          href="/how-matching-works"
+          aria-current={current === "how" ? "page" : undefined}
+          className={
+            current === "how"
+              ? "text-ink font-bold"
+              : "hover:text-oxblood transition-colors"
+          }
+        >
+          how it works
+        </Link>
+      </div>
     </nav>
   );
 }
