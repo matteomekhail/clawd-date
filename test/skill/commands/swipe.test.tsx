@@ -1,5 +1,4 @@
 // @vitest-environment node
-import React from "react";
 import { render } from "ink-testing-library";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
