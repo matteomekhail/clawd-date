@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const config: NextConfig = {
-  // TODO: implement
+  output: "export",
   reactStrictMode: true,
 };
 

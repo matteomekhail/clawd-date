@@ -4,7 +4,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { applySettings } from "../lib/settings.js";
 import { writeConfig, readConfig } from "../lib/config.js";
 
-const DEFAULT_API_URL = "https://impartial-dinosaur-5.convex.site";
+const DEFAULT_API_URL = "https://cautious-dachshund-642.convex.site";
 
 function tryGhUser(): { githubId: string; username: string } | null {
   try {
