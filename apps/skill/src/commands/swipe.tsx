@@ -247,7 +247,7 @@ function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
     setError(null);
     setCandidates(null);
     setIndex(0);
-    getDiscover(cfg.apiUrl, cfg.githubId)
+    getDiscover(cfg.apiUrl, cfg.authToken)
       .then(setCandidates)
       .catch((e: unknown) =>
         setError(e instanceof Error ? e.message : String(e)),
@@ -256,11 +256,11 @@ function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
 
   useEffect(() => {
     loadCandidates();
-    getMutualMatches(cfg.apiUrl, cfg.githubId)
+    getMutualMatches(cfg.apiUrl, cfg.authToken)
       .then((m) => setMatchCount(m.length))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg.apiUrl, cfg.githubId]);
+  }, [cfg.apiUrl, cfg.authToken]);
 
   async function swipe(action: "like" | "pass"): Promise<void> {
     if (busy || !candidates) return;
@@ -269,7 +269,7 @@ function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
     if (!c) return;
     setBusy(true);
     try {
-      const result = await postSwipe(cfg.apiUrl, cfg.githubId, c.githubId, action);
+      const result = await postSwipe(cfg.apiUrl, cfg.authToken, c.githubId, action);
       setStats((s) => ({
         likes: s.likes + (action === "like" ? 1 : 0),
         passes: s.passes + (action === "pass" ? 1 : 0),
@@ -293,10 +293,10 @@ function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
     setView("matches");
     setMatchesLoading(true);
     try {
-      const m = await getMutualMatches(cfg.apiUrl, cfg.githubId);
+      const m = await getMutualMatches(cfg.apiUrl, cfg.authToken);
       setMatches(m);
       setMatchCount(m.length);
-      void markMatchesRead(cfg.apiUrl, cfg.githubId).catch(() => {});
+      void markMatchesRead(cfg.apiUrl, cfg.authToken).catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

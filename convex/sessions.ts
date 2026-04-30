@@ -1,7 +1,7 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 
-export const record = mutation({
+export const record = internalMutation({
   args: {
     userId: v.id("users"),
     project: v.string(),
@@ -13,7 +13,7 @@ export const record = mutation({
   handler: (ctx, args) => ctx.db.insert("sessions", args),
 });
 
-export const forUser = query({
+export const forUser = internalQuery({
   args: { userId: v.id("users") },
   handler: (ctx, { userId }) =>
     ctx.db

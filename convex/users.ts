@@ -1,51 +1,30 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 
-export const byGithubId = query({
-  args: { githubId: v.string() },
-  handler: (ctx, { githubId }) =>
-    ctx.db
-      .query("users")
-      .withIndex("by_github_id", (q) => q.eq("githubId", githubId))
-      .first(),
+export const byId = internalQuery({
+  args: { userId: v.id("users") },
+  handler: (ctx, { userId }) => ctx.db.get(userId),
 });
 
-export const upsert = mutation({
+export const updateProfile = internalMutation({
   args: {
-    githubId: v.string(),
-    username: v.string(),
-    avatarUrl: v.optional(v.string()),
-    bio: v.optional(v.string()),
+    userId: v.id("users"),
     languages: v.array(v.string()),
     tools: v.array(v.string()),
+    bio: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("users")
-      .withIndex("by_github_id", (q) => q.eq("githubId", args.githubId))
-      .first();
-    if (existing) {
-      await ctx.db.patch(existing._id, args);
-      return existing._id;
-    }
-    return ctx.db.insert("users", args);
+  handler: async (ctx, { userId, languages, tools, bio }) => {
+    const patch: Record<string, unknown> = { languages, tools };
+    if (bio !== undefined) patch.bio = bio;
+    await ctx.db.patch(userId, patch);
+    return userId;
   },
 });
 
-export const heartbeat = mutation({
-  args: { githubId: v.string() },
-  handler: async (ctx, { githubId }) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_github_id", (q) => q.eq("githubId", githubId))
-      .first();
-    if (!user) return null;
-    await ctx.db.patch(user._id, { lastActiveAt: Date.now() });
-    return user._id;
+export const heartbeat = internalMutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    await ctx.db.patch(userId, { lastActiveAt: Date.now() });
+    return userId;
   },
-});
-
-export const list = query({
-  args: {},
-  handler: (ctx) => ctx.db.query("users").take(50),
 });

@@ -41,106 +41,143 @@ export interface Status {
   mutualMatches: number;
 }
 
+export interface ExchangeResult {
+  token: string;
+  githubId: string;
+  username: string;
+}
+
+export class UnauthorizedError extends Error {
+  constructor() {
+    super("clawd-date token is missing or expired");
+    this.name = "UnauthorizedError";
+  }
+}
+
 function trimUrl(url: string): string {
   return url.replace(/\/$/, "");
 }
 
+function authHeaders(token: string): Record<string, string> {
+  return { authorization: `Bearer ${token}` };
+}
+
+async function ensureOk(res: Response, label: string): Promise<void> {
+  if (res.ok) return;
+  if (res.status === 401) throw new UnauthorizedError();
+  throw new Error(`${label} failed: ${res.status} ${await res.text()}`);
+}
+
+export async function exchangeGithubToken(
+  apiUrl: string,
+  githubAccessToken: string,
+): Promise<ExchangeResult> {
+  const res = await fetch(`${trimUrl(apiUrl)}/auth/exchange`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ githubAccessToken }),
+  });
+  if (!res.ok) {
+    throw new Error(`auth exchange failed: ${res.status} ${await res.text()}`);
+  }
+  return res.json() as Promise<ExchangeResult>;
+}
+
 export async function postIngest(
   apiUrl: string,
+  token: string,
   payload: IngestPayload,
 ): Promise<{ ok: true; userId: string }> {
   const res = await fetch(`${trimUrl(apiUrl)}/ingest`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...authHeaders(token) },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    throw new Error(`ingest failed: ${res.status} ${await res.text()}`);
-  }
+  await ensureOk(res, "ingest");
   return res.json() as Promise<{ ok: true; userId: string }>;
 }
 
-export async function postHeartbeat(
-  apiUrl: string,
-  githubId: string,
-): Promise<void> {
+export async function postHeartbeat(apiUrl: string, token: string): Promise<void> {
   const res = await fetch(`${trimUrl(apiUrl)}/heartbeat`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ githubId }),
+    headers: { "content-type": "application/json", ...authHeaders(token) },
   });
-  if (!res.ok) throw new Error(`heartbeat failed: ${res.status}`);
+  await ensureOk(res, "heartbeat");
 }
 
 export async function getStatus(
   apiUrl: string,
-  githubId: string,
+  token: string,
   signal?: AbortSignal,
 ): Promise<Status> {
-  const url = `${trimUrl(apiUrl)}/status?githubId=${encodeURIComponent(githubId)}`;
-  const res = await fetch(url, { signal });
-  if (!res.ok) throw new Error(`status failed: ${res.status}`);
+  const res = await fetch(`${trimUrl(apiUrl)}/status`, {
+    headers: authHeaders(token),
+    signal,
+  });
+  await ensureOk(res, "status");
   return res.json() as Promise<Status>;
 }
 
 export async function getUnreadMatches(
   apiUrl: string,
-  githubId: string,
+  token: string,
 ): Promise<UnreadMatch[]> {
-  const url = `${trimUrl(apiUrl)}/matches/unread?githubId=${encodeURIComponent(githubId)}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`unread fetch failed: ${res.status}`);
+  const res = await fetch(`${trimUrl(apiUrl)}/matches/unread`, {
+    headers: authHeaders(token),
+  });
+  await ensureOk(res, "unread");
   const data = (await res.json()) as { matches: UnreadMatch[] };
   return data.matches;
 }
 
 export async function markMatchesRead(
   apiUrl: string,
-  githubId: string,
+  token: string,
 ): Promise<number> {
   const res = await fetch(`${trimUrl(apiUrl)}/matches/markRead`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ githubId }),
+    headers: { "content-type": "application/json", ...authHeaders(token) },
   });
-  if (!res.ok) throw new Error(`markRead failed: ${res.status}`);
+  await ensureOk(res, "markRead");
   const data = (await res.json()) as { ok: true; count: number };
   return data.count;
 }
 
 export async function getDiscover(
   apiUrl: string,
-  githubId: string,
+  token: string,
 ): Promise<Candidate[]> {
-  const url = `${trimUrl(apiUrl)}/discover?githubId=${encodeURIComponent(githubId)}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`discover failed: ${res.status}`);
+  const res = await fetch(`${trimUrl(apiUrl)}/discover`, {
+    headers: authHeaders(token),
+  });
+  await ensureOk(res, "discover");
   const data = (await res.json()) as { candidates: Candidate[] };
   return data.candidates;
 }
 
 export async function postSwipe(
   apiUrl: string,
-  githubId: string,
+  token: string,
   targetGithubId: string,
   action: "like" | "pass",
 ): Promise<{ mutual: boolean }> {
   const res = await fetch(`${trimUrl(apiUrl)}/swipe`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ githubId, targetGithubId, action }),
+    headers: { "content-type": "application/json", ...authHeaders(token) },
+    body: JSON.stringify({ targetGithubId, action }),
   });
-  if (!res.ok) throw new Error(`swipe failed: ${res.status} ${await res.text()}`);
+  await ensureOk(res, "swipe");
   return res.json() as Promise<{ mutual: boolean }>;
 }
 
 export async function getMutualMatches(
   apiUrl: string,
-  githubId: string,
+  token: string,
 ): Promise<MutualMatch[]> {
-  const url = `${trimUrl(apiUrl)}/matches?githubId=${encodeURIComponent(githubId)}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`matches failed: ${res.status}`);
+  const res = await fetch(`${trimUrl(apiUrl)}/matches`, {
+    headers: authHeaders(token),
+  });
+  await ensureOk(res, "matches");
   const data = (await res.json()) as { matches: MutualMatch[] };
   return data.matches;
 }

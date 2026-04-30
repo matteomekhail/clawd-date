@@ -17,14 +17,14 @@ function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
   useEffect(() => {
     (async () => {
       try {
-        const m = await getMutualMatches(cfg.apiUrl, cfg.githubId);
+        const m = await getMutualMatches(cfg.apiUrl, cfg.authToken);
         setMatches(m);
-        await markMatchesRead(cfg.apiUrl, cfg.githubId).catch(() => {});
+        await markMatchesRead(cfg.apiUrl, cfg.authToken).catch(() => {});
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       }
     })();
-  }, [cfg.apiUrl, cfg.githubId]);
+  }, [cfg.apiUrl, cfg.authToken]);
 
   useInput((input, key) => {
     if (input === "q" || key.escape || key.return) exit();

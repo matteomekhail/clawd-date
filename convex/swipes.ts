@@ -1,15 +1,24 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 
 const swipeAction = v.union(v.literal("like"), v.literal("pass"));
 
-export const record = mutation({
+export const recordByGithubId = internalMutation({
   args: {
     fromUserId: v.id("users"),
-    toUserId: v.id("users"),
+    targetGithubId: v.string(),
     action: swipeAction,
   },
-  handler: async (ctx, { fromUserId, toUserId, action }) => {
+  handler: async (ctx, { fromUserId, targetGithubId, action }) => {
+    const target = await ctx.db
+      .query("users")
+      .withIndex("by_github_id", (q) => q.eq("githubId", targetGithubId))
+      .first();
+    if (!target) return { ok: false as const, reason: "user not found" };
+    if (target._id === fromUserId) return { ok: false as const, reason: "cannot swipe self" };
+
+    const toUserId = target._id;
+
     const existing = await ctx.db
       .query("swipes")
       .withIndex("by_pair", (q) =>
@@ -22,7 +31,7 @@ export const record = mutation({
       await ctx.db.insert("swipes", { fromUserId, toUserId, action });
     }
 
-    if (action !== "like") return { mutual: false };
+    if (action !== "like") return { ok: true as const, mutual: false };
 
     const reciprocal = await ctx.db
       .query("swipes")
@@ -31,7 +40,9 @@ export const record = mutation({
       )
       .first();
 
-    if (!reciprocal || reciprocal.action !== "like") return { mutual: false };
+    if (!reciprocal || reciprocal.action !== "like") {
+      return { ok: true as const, mutual: false };
+    }
 
     const existingNotif = await ctx.db
       .query("notifications")
@@ -49,17 +60,14 @@ export const record = mutation({
       });
     }
 
-    return { mutual: true };
+    return { ok: true as const, mutual: true };
   },
 });
 
-export const discoverFor = query({
-  args: { githubId: v.string() },
-  handler: async (ctx, { githubId }) => {
-    const me = await ctx.db
-      .query("users")
-      .withIndex("by_github_id", (q) => q.eq("githubId", githubId))
-      .first();
+export const discoverFor = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const me = await ctx.db.get(userId);
     if (!me) return [];
 
     const swiped = await ctx.db
@@ -110,13 +118,10 @@ export const discoverFor = query({
   },
 });
 
-export const mutualFor = query({
-  args: { githubId: v.string() },
-  handler: async (ctx, { githubId }) => {
-    const me = await ctx.db
-      .query("users")
-      .withIndex("by_github_id", (q) => q.eq("githubId", githubId))
-      .first();
+export const mutualFor = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const me = await ctx.db.get(userId);
     if (!me) return [];
 
     const myLikes = await ctx.db

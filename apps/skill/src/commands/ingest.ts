@@ -40,10 +40,8 @@ export async function runIngest(): Promise<void> {
   const session = extractSession(transcriptPath, cwd);
   if (!session) return;
 
-  await postIngest(cfg.apiUrl, {
+  await postIngest(cfg.apiUrl, cfg.authToken, {
     profile: {
-      githubId: cfg.githubId,
-      username: cfg.username,
       languages: session.languages,
       tools: session.tools,
     },

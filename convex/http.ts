@@ -1,6 +1,10 @@
-import { httpRouter } from "convex/server";
+import { httpRouter, type GenericActionCtx } from "convex/server";
 import { httpAction } from "./_generated/server";
-import { api } from "./_generated/api";
+import { internal } from "./_generated/api";
+import { identityFromRequest } from "./auth";
+import type { DataModel, Id } from "./_generated/dataModel";
+
+type HttpCtx = GenericActionCtx<DataModel>;
 
 const http = httpRouter();
 
@@ -10,20 +14,59 @@ const json = (body: unknown, status = 200) =>
     headers: { "content-type": "application/json" },
   });
 
+const unauthorized = () => json({ error: "unauthorized" }, 401);
+
+async function authedUserId(
+  ctx: HttpCtx,
+  request: Request,
+): Promise<Id<"users"> | null> {
+  const identity = await identityFromRequest(request);
+  if (!identity) return null;
+  const userId = await ctx.runQuery(internal.auth.userIdByGithubId, {
+    githubId: identity.githubId,
+  });
+  return userId;
+}
+
+http.route({
+  path: "/auth/exchange",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    let body: { githubAccessToken?: unknown };
+    try {
+      body = (await request.json()) as { githubAccessToken?: unknown };
+    } catch {
+      return json({ error: "invalid body" }, 400);
+    }
+    if (typeof body.githubAccessToken !== "string" || !body.githubAccessToken) {
+      return json({ error: "missing githubAccessToken" }, 400);
+    }
+    try {
+      const result = await ctx.runAction(internal.auth.exchangeGithubToken, {
+        githubAccessToken: body.githubAccessToken,
+      });
+      return json(result);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "exchange failed";
+      return json({ error: message }, 401);
+    }
+  }),
+});
+
 http.route({
   path: "/ingest",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const body = (await request.json()) as {
-      profile: {
-        githubId: string;
-        username: string;
-        avatarUrl?: string;
-        bio?: string;
-        languages: string[];
-        tools: string[];
+    const userId = await authedUserId(ctx, request);
+    if (!userId) return unauthorized();
+
+    let body: {
+      profile?: {
+        languages?: unknown;
+        tools?: unknown;
+        bio?: unknown;
       };
-      sessions: Array<{
+      sessions?: Array<{
         project: string;
         languages: string[];
         tools: string[];
@@ -31,10 +74,42 @@ http.route({
         occurredAt: number;
       }>;
     };
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: "invalid body" }, 400);
+    }
 
-    const userId = await ctx.runMutation(api.users.upsert, body.profile);
+    const langs = body.profile?.languages;
+    const tools = body.profile?.tools;
+    if (
+      !Array.isArray(langs) ||
+      !Array.isArray(tools) ||
+      langs.some((l) => typeof l !== "string") ||
+      tools.some((t) => typeof t !== "string")
+    ) {
+      return json({ error: "invalid profile" }, 400);
+    }
+
+    const bio = typeof body.profile?.bio === "string" ? (body.profile.bio as string) : undefined;
+
+    await ctx.runMutation(internal.users.updateProfile, {
+      userId,
+      languages: langs as string[],
+      tools: tools as string[],
+      bio,
+    });
+    await ctx.runMutation(internal.users.heartbeat, { userId });
+
     for (const session of body.sessions ?? []) {
-      await ctx.runMutation(api.sessions.record, { ...session, userId });
+      await ctx.runMutation(internal.sessions.record, {
+        userId,
+        project: session.project,
+        languages: session.languages,
+        tools: session.tools,
+        summary: session.summary,
+        occurredAt: session.occurredAt,
+      });
     }
 
     return json({ ok: true, userId });
@@ -45,10 +120,9 @@ http.route({
   path: "/heartbeat",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const body = (await request.json()) as { githubId: string };
-    const userId = await ctx.runMutation(api.users.heartbeat, {
-      githubId: body.githubId,
-    });
+    const userId = await authedUserId(ctx, request);
+    if (!userId) return unauthorized();
+    await ctx.runMutation(internal.users.heartbeat, { userId });
     return json({ ok: true, userId });
   }),
 });
@@ -57,9 +131,9 @@ http.route({
   path: "/status",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    const githubId = new URL(request.url).searchParams.get("githubId");
-    if (!githubId) return json({ error: "missing githubId" }, 400);
-    const status = await ctx.runQuery(api.status.statusFor, { githubId });
+    const userId = await authedUserId(ctx, request);
+    if (!userId) return unauthorized();
+    const status = await ctx.runQuery(internal.status.statusFor, { userId });
     return json(status);
   }),
 });
@@ -68,9 +142,9 @@ http.route({
   path: "/discover",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    const githubId = new URL(request.url).searchParams.get("githubId");
-    if (!githubId) return json({ error: "missing githubId" }, 400);
-    const candidates = await ctx.runQuery(api.swipes.discoverFor, { githubId });
+    const userId = await authedUserId(ctx, request);
+    if (!userId) return unauthorized();
+    const candidates = await ctx.runQuery(internal.swipes.discoverFor, { userId });
     return json({ candidates });
   }),
 });
@@ -79,27 +153,29 @@ http.route({
   path: "/swipe",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const body = (await request.json()) as {
-      githubId: string;
-      targetGithubId: string;
-      action: "like" | "pass";
-    };
+    const userId = await authedUserId(ctx, request);
+    if (!userId) return unauthorized();
 
-    const me = await ctx.runQuery(api.users.byGithubId, {
-      githubId: body.githubId,
-    });
-    const target = await ctx.runQuery(api.users.byGithubId, {
-      githubId: body.targetGithubId,
-    });
-    if (!me || !target) return json({ error: "user not found" }, 404);
+    let body: { targetGithubId?: unknown; action?: unknown };
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: "invalid body" }, 400);
+    }
+    if (typeof body.targetGithubId !== "string") {
+      return json({ error: "missing targetGithubId" }, 400);
+    }
+    if (body.action !== "like" && body.action !== "pass") {
+      return json({ error: "invalid action" }, 400);
+    }
 
-    const result = await ctx.runMutation(api.swipes.record, {
-      fromUserId: me._id,
-      toUserId: target._id,
+    const result = await ctx.runMutation(internal.swipes.recordByGithubId, {
+      fromUserId: userId,
+      targetGithubId: body.targetGithubId,
       action: body.action,
     });
-
-    return json(result);
+    if (!result.ok) return json({ error: result.reason }, 404);
+    return json({ mutual: result.mutual });
   }),
 });
 
@@ -107,9 +183,9 @@ http.route({
   path: "/matches",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    const githubId = new URL(request.url).searchParams.get("githubId");
-    if (!githubId) return json({ error: "missing githubId" }, 400);
-    const matches = await ctx.runQuery(api.swipes.mutualFor, { githubId });
+    const userId = await authedUserId(ctx, request);
+    if (!userId) return unauthorized();
+    const matches = await ctx.runQuery(internal.swipes.mutualFor, { userId });
     return json({ matches });
   }),
 });
@@ -118,11 +194,9 @@ http.route({
   path: "/matches/unread",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    const githubId = new URL(request.url).searchParams.get("githubId");
-    if (!githubId) return json({ error: "missing githubId" }, 400);
-    const matches = await ctx.runQuery(api.notifications.unreadForGithubId, {
-      githubId,
-    });
+    const userId = await authedUserId(ctx, request);
+    if (!userId) return unauthorized();
+    const matches = await ctx.runQuery(internal.notifications.unreadFor, { userId });
     return json({ matches });
   }),
 });
@@ -131,11 +205,9 @@ http.route({
   path: "/matches/markRead",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const body = (await request.json()) as { githubId: string };
-    const count = await ctx.runMutation(
-      api.notifications.markAllReadForGithubId,
-      { githubId: body.githubId },
-    );
+    const userId = await authedUserId(ctx, request);
+    if (!userId) return unauthorized();
+    const count = await ctx.runMutation(internal.notifications.markAllRead, { userId });
     return json({ ok: true, count });
   }),
 });

@@ -52,12 +52,12 @@ function format(s: Status): string {
 
 async function fetchWithTimeout(
   apiUrl: string,
-  githubId: string,
+  token: string,
 ): Promise<Status | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    return await getStatus(apiUrl, githubId, controller.signal);
+    return await getStatus(apiUrl, token, controller.signal);
   } catch {
     return null;
   } finally {
@@ -80,7 +80,7 @@ export async function runStatus(): Promise<void> {
     return;
   }
 
-  const fetched = await fetchWithTimeout(cfg.apiUrl, cfg.githubId);
+  const fetched = await fetchWithTimeout(cfg.apiUrl, cfg.authToken);
 
   if (fetched) {
     writeCache(fetched);

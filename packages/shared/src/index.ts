@@ -1,12 +1,3 @@
-export interface DevProfile {
-  githubId: string;
-  username: string;
-  avatarUrl?: string;
-  bio?: string;
-  languages: string[];
-  tools: string[];
-}
-
 export interface SessionPayload {
   project: string;
   languages: string[];
@@ -16,6 +7,10 @@ export interface SessionPayload {
 }
 
 export interface IngestPayload {
-  profile: DevProfile;
+  profile: {
+    languages: string[];
+    tools: string[];
+    bio?: string;
+  };
   sessions: SessionPayload[];
 }

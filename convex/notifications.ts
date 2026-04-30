@@ -1,18 +1,12 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 
-export const unreadForGithubId = query({
-  args: { githubId: v.string() },
-  handler: async (ctx, { githubId }) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_github_id", (q) => q.eq("githubId", githubId))
-      .first();
-    if (!user) return [];
-
+export const unreadFor = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
     const items = await ctx.db
       .query("notifications")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
 
     const unread = items.filter((n) => n.readAt === undefined);
@@ -32,18 +26,12 @@ export const unreadForGithubId = query({
   },
 });
 
-export const markAllReadForGithubId = mutation({
-  args: { githubId: v.string() },
-  handler: async (ctx, { githubId }) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_github_id", (q) => q.eq("githubId", githubId))
-      .first();
-    if (!user) return 0;
-
+export const markAllRead = internalMutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
     const items = await ctx.db
       .query("notifications")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
 
     const now = Date.now();

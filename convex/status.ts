@@ -1,11 +1,11 @@
 import { v } from "convex/values";
-import { query } from "./_generated/server";
+import { internalQuery } from "./_generated/server";
 
 const ACTIVE_WINDOW_MS = 5 * 60 * 1000;
 
-export const statusFor = query({
-  args: { githubId: v.string() },
-  handler: async (ctx, { githubId }) => {
+export const statusFor = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
     const empty = {
       unreadMatches: 0,
       unreadUsernames: [] as string[],
@@ -15,10 +15,7 @@ export const statusFor = query({
       mutualMatches: 0,
     };
 
-    const me = await ctx.db
-      .query("users")
-      .withIndex("by_github_id", (q) => q.eq("githubId", githubId))
-      .first();
+    const me = await ctx.db.get(userId);
     if (!me) return empty;
 
     const now = Date.now();

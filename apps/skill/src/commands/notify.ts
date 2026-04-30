@@ -10,11 +10,11 @@ export async function runNotify(): Promise<void> {
   const cfg = readConfig();
   if (!cfg) return;
 
-  postHeartbeat(cfg.apiUrl, cfg.githubId).catch(() => {});
+  postHeartbeat(cfg.apiUrl, cfg.authToken).catch(() => {});
 
   let status;
   try {
-    status = await getStatus(cfg.apiUrl, cfg.githubId);
+    status = await getStatus(cfg.apiUrl, cfg.authToken);
   } catch {
     return;
   }
