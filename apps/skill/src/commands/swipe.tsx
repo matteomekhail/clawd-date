@@ -354,7 +354,8 @@ function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
       <Box flexDirection="column">
         <Box
           paddingX={1}
-          paddingY={0}
+          paddingTop={0}
+          paddingBottom={1}
           borderStyle="round"
           borderColor="magentaBright"
           flexDirection="column"
@@ -378,7 +379,8 @@ function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
       <Box flexDirection="column">
         <Box
           paddingX={1}
-          paddingY={0}
+          paddingTop={0}
+          paddingBottom={1}
           borderStyle="round"
           borderColor="cyan"
           flexDirection="column"
@@ -400,7 +402,8 @@ function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
       <Box flexDirection="column">
         <Box
           paddingX={1}
-          paddingY={0}
+          paddingTop={0}
+          paddingBottom={1}
           borderStyle="round"
           borderColor="red"
           flexDirection="column"
@@ -424,7 +427,8 @@ function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
       <Box flexDirection="column">
         <Box
           paddingX={1}
-          paddingY={0}
+          paddingTop={0}
+          paddingBottom={1}
           borderStyle="round"
           borderColor="magentaBright"
           flexDirection="column"
@@ -444,7 +448,8 @@ function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
       <Box flexDirection="column">
         <Box
           paddingX={1}
-          paddingY={0}
+          paddingTop={0}
+          paddingBottom={1}
           borderStyle="round"
           borderColor="magentaBright"
           flexDirection="column"
@@ -455,7 +460,7 @@ function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
           </Text>
           <Text dimColor>
             {exhausted
-              ? `This session: ❤️ ${stats.likes}  ✕ ${stats.passes}  💘 ${stats.matches}`
+              ? `This session: 💖 ${stats.likes}  ✕ ${stats.passes}  💘 ${stats.matches}`
               : "Either everyone's been swiped, or there are no devs that match your profile yet."}
           </Text>
           <Box marginTop={1} flexDirection="column">
@@ -496,7 +501,8 @@ function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
       <Box
         flexDirection="column"
         paddingX={1}
-        paddingY={0}
+        paddingTop={0}
+        paddingBottom={1}
         borderStyle="round"
         borderColor="magentaBright"
       >
@@ -515,7 +521,7 @@ function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
         ) : null}
         <Box marginTop={1}>
           <Text dimColor>
-            session: ❤️ {stats.likes}  ✕ {stats.passes}  💘 {stats.matches}
+            session: 💖 {stats.likes}  ✕ {stats.passes}  💘 {stats.matches}
           </Text>
         </Box>
       </Box>
