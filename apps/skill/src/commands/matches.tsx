@@ -1,18 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { Box, Text, render, useApp, useInput } from "ink";
 import Spinner from "ink-spinner";
-import { requireConfig } from "../lib/config.js";
+import { readConfig, printNotConfigured } from "../lib/config.js";
+import type { LocalConfig } from "../lib/config.js";
 import {
   getMutualMatches,
   markMatchesRead,
   type MutualMatch,
 } from "../lib/api.js";
 
-function App(): React.ReactElement {
+function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
   const { exit } = useApp();
   const [matches, setMatches] = useState<MutualMatch[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const cfg = requireConfig();
 
   useEffect(() => {
     (async () => {
@@ -89,6 +89,11 @@ function App(): React.ReactElement {
 }
 
 export async function runMatches(): Promise<void> {
-  const { waitUntilExit } = render(<App />);
+  const cfg = readConfig();
+  if (!cfg) {
+    printNotConfigured();
+    process.exit(1);
+  }
+  const { waitUntilExit } = render(<App cfg={cfg} />);
   await waitUntilExit();
 }

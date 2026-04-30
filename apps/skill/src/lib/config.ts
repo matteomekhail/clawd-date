@@ -36,12 +36,26 @@ export function writeConfig(config: LocalConfig): void {
   writeFileSync(CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 }
 
+export class NotConfiguredError extends Error {
+  constructor() {
+    super("clawd-date is not configured");
+    this.name = "NotConfiguredError";
+  }
+}
+
 export function requireConfig(): LocalConfig {
   const cfg = readConfig();
-  if (!cfg) {
-    throw new Error(
-      "clawd-date is not configured. Run `clawd-date init` to set up.",
-    );
-  }
+  if (!cfg) throw new NotConfiguredError();
   return cfg;
+}
+
+export function printNotConfigured(): void {
+  const magenta = "\x1b[95m";
+  const dim = "\x1b[2m";
+  const bold = "\x1b[1m";
+  const reset = "\x1b[0m";
+  process.stderr.write(
+    `\n  ${magenta}${bold}clawd.date${reset} isn't set up yet.\n` +
+      `  ${dim}Run${reset} ${bold}clawd-date init${reset} ${dim}to get started.${reset}\n\n`,
+  );
 }

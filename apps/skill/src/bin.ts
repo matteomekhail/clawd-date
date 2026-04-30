@@ -3,6 +3,7 @@ import { runIngest } from "./commands/ingest.js";
 import { runNotify } from "./commands/notify.js";
 import { runStatus } from "./commands/status.js";
 import { runUninstall } from "./commands/uninstall.js";
+import { NotConfiguredError, printNotConfigured } from "./lib/config.js";
 
 async function main(): Promise<void> {
   const cmd = process.argv[2];
@@ -56,6 +57,10 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
+  if (err instanceof NotConfiguredError) {
+    printNotConfigured();
+    process.exit(1);
+  }
   process.stderr.write(
     `clawd-date: ${err instanceof Error ? err.message : String(err)}\n`,
   );

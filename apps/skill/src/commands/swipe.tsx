@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Box, Text, render, useApp, useInput } from "ink";
 import Spinner from "ink-spinner";
-import { requireConfig } from "../lib/config.js";
+import { readConfig, printNotConfigured } from "../lib/config.js";
+import type { LocalConfig } from "../lib/config.js";
 import {
   getDiscover,
   getMutualMatches,
@@ -228,7 +229,7 @@ function HelpView(): React.ReactElement {
   );
 }
 
-function App(): React.ReactElement {
+function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
   const { exit } = useApp();
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -241,7 +242,6 @@ function App(): React.ReactElement {
   const [matches, setMatches] = useState<MutualMatch[] | null>(null);
   const [matchesLoading, setMatchesLoading] = useState(false);
   const [matchCount, setMatchCount] = useState(0);
-  const cfg = requireConfig();
 
   function loadCandidates(): void {
     setError(null);
@@ -534,6 +534,11 @@ function App(): React.ReactElement {
 }
 
 export async function runSwipe(): Promise<void> {
-  const { waitUntilExit } = render(<App />);
+  const cfg = readConfig();
+  if (!cfg) {
+    printNotConfigured();
+    process.exit(1);
+  }
+  const { waitUntilExit } = render(<App cfg={cfg} />);
   await waitUntilExit();
 }
