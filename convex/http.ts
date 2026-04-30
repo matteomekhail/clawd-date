@@ -4,6 +4,12 @@ import { api } from "./_generated/api";
 
 const http = httpRouter();
 
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+
 http.route({
   path: "/ingest",
   method: "POST",
@@ -31,9 +37,80 @@ http.route({
       await ctx.runMutation(api.sessions.record, { ...session, userId });
     }
 
-    return new Response(JSON.stringify({ ok: true, userId }), {
-      headers: { "content-type": "application/json" },
+    return json({ ok: true, userId });
+  }),
+});
+
+http.route({
+  path: "/heartbeat",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const body = (await request.json()) as { githubId: string };
+    const userId = await ctx.runMutation(api.users.heartbeat, {
+      githubId: body.githubId,
     });
+    return json({ ok: true, userId });
+  }),
+});
+
+http.route({
+  path: "/status",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const githubId = new URL(request.url).searchParams.get("githubId");
+    if (!githubId) return json({ error: "missing githubId" }, 400);
+    const status = await ctx.runQuery(api.status.statusFor, { githubId });
+    return json(status);
+  }),
+});
+
+http.route({
+  path: "/discover",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const githubId = new URL(request.url).searchParams.get("githubId");
+    if (!githubId) return json({ error: "missing githubId" }, 400);
+    const candidates = await ctx.runQuery(api.swipes.discoverFor, { githubId });
+    return json({ candidates });
+  }),
+});
+
+http.route({
+  path: "/swipe",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const body = (await request.json()) as {
+      githubId: string;
+      targetGithubId: string;
+      action: "like" | "pass";
+    };
+
+    const me = await ctx.runQuery(api.users.byGithubId, {
+      githubId: body.githubId,
+    });
+    const target = await ctx.runQuery(api.users.byGithubId, {
+      githubId: body.targetGithubId,
+    });
+    if (!me || !target) return json({ error: "user not found" }, 404);
+
+    const result = await ctx.runMutation(api.swipes.record, {
+      fromUserId: me._id,
+      toUserId: target._id,
+      action: body.action,
+    });
+
+    return json(result);
+  }),
+});
+
+http.route({
+  path: "/matches",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const githubId = new URL(request.url).searchParams.get("githubId");
+    if (!githubId) return json({ error: "missing githubId" }, 400);
+    const matches = await ctx.runQuery(api.swipes.mutualFor, { githubId });
+    return json({ matches });
   }),
 });
 
@@ -41,20 +118,12 @@ http.route({
   path: "/matches/unread",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    const url = new URL(request.url);
-    const githubId = url.searchParams.get("githubId");
-    if (!githubId) {
-      return new Response(JSON.stringify({ error: "missing githubId" }), {
-        status: 400,
-        headers: { "content-type": "application/json" },
-      });
-    }
+    const githubId = new URL(request.url).searchParams.get("githubId");
+    if (!githubId) return json({ error: "missing githubId" }, 400);
     const matches = await ctx.runQuery(api.notifications.unreadForGithubId, {
       githubId,
     });
-    return new Response(JSON.stringify({ matches }), {
-      headers: { "content-type": "application/json" },
-    });
+    return json({ matches });
   }),
 });
 
@@ -67,9 +136,7 @@ http.route({
       api.notifications.markAllReadForGithubId,
       { githubId: body.githubId },
     );
-    return new Response(JSON.stringify({ ok: true, count }), {
-      headers: { "content-type": "application/json" },
-    });
+    return json({ ok: true, count });
   }),
 });
 

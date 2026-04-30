@@ -9,6 +9,7 @@ export default defineSchema({
     bio: v.optional(v.string()),
     languages: v.array(v.string()),
     tools: v.array(v.string()),
+    lastActiveAt: v.optional(v.number()),
   }).index("by_github_id", ["githubId"]),
 
   sessions: defineTable({
@@ -20,12 +21,12 @@ export default defineSchema({
     occurredAt: v.number(),
   }).index("by_user", ["userId"]),
 
-  likes: defineTable({
+  swipes: defineTable({
     fromUserId: v.id("users"),
     toUserId: v.id("users"),
+    action: v.union(v.literal("like"), v.literal("pass")),
   })
     .index("by_from", ["fromUserId"])
-    .index("by_to", ["toUserId"])
     .index("by_pair", ["fromUserId", "toUserId"]),
 
   notifications: defineTable({

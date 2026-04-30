@@ -3,7 +3,8 @@ import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 
 export const CLAUDE_SETTINGS_PATH = join(homedir(), ".claude", "settings.json");
-export const HOOK_MARKER = "clawd-match";
+export const HOOK_MARKER = "clawd-date";
+const LEGACY_HOOK_MARKERS = ["clawd-match"];
 
 interface HookEntry {
   type: "command";
@@ -15,8 +16,15 @@ interface HookGroup {
   hooks: HookEntry[];
 }
 
+interface StatusLineConfig {
+  type?: "command";
+  command?: string;
+  padding?: number;
+}
+
 interface ClaudeSettings {
   hooks?: Record<string, HookGroup[]>;
+  statusLine?: StatusLineConfig;
   [key: string]: unknown;
 }
 
@@ -26,19 +34,18 @@ function readSettings(path: string): ClaudeSettings {
     return JSON.parse(readFileSync(path, "utf8")) as ClaudeSettings;
   } catch (err) {
     throw new Error(
-      `~/.claude/settings.json non è JSON valido. Sistemalo a mano o spostalo prima di rieseguire init.\n${err instanceof Error ? err.message : err}`,
+      `~/.claude/settings.json is not valid JSON. Fix it manually or move it before re-running init.\n${err instanceof Error ? err.message : err}`,
     );
   }
 }
 
 function isClawdHook(entry: HookEntry): boolean {
-  return entry.type === "command" && entry.command.includes(HOOK_MARKER);
+  if (entry.type !== "command") return false;
+  if (entry.command.includes(HOOK_MARKER)) return true;
+  return LEGACY_HOOK_MARKERS.some((m) => entry.command.includes(m));
 }
 
-function ensureGroup(
-  settings: ClaudeSettings,
-  event: string,
-): { settings: ClaudeSettings; group: HookGroup } {
+function ensureGroup(settings: ClaudeSettings, event: string): HookGroup {
   if (!settings.hooks) settings.hooks = {};
   if (!settings.hooks[event]) settings.hooks[event] = [];
   let group = settings.hooks[event].find((g) => (g.matcher ?? "") === "");
@@ -46,29 +53,38 @@ function ensureGroup(
     group = { matcher: "", hooks: [] };
     settings.hooks[event].push(group);
   }
-  return { settings, group };
+  return group;
 }
 
-function upsertHook(group: HookGroup, command: string): boolean {
-  const existing = group.hooks.find(
+function upsertHookInGroup(group: HookGroup, command: string): boolean {
+  const exact = group.hooks.find(
     (h) => h.type === "command" && h.command === command,
   );
-  if (existing) return false;
+  if (exact) return false;
   group.hooks = group.hooks.filter((h) => !isClawdHook(h));
   group.hooks.push({ type: "command", command });
   return true;
 }
 
-export interface InstallResult {
-  added: string[];
-  unchanged: string[];
+export type StatusLineOutcome =
+  | { kind: "added"; command: string }
+  | { kind: "unchanged" }
+  | { kind: "skipped"; existingCommand: string };
+
+export interface ApplyResult {
+  hooks: { added: string[]; unchanged: string[] };
+  statusLine: StatusLineOutcome;
   backup?: string;
 }
 
-export function installHooks(
-  hooks: Array<{ event: string; command: string }>,
-  path: string = CLAUDE_SETTINGS_PATH,
-): InstallResult {
+export interface ApplyOptions {
+  hooks: Array<{ event: string; command: string }>;
+  statusLine?: { command: string };
+  path?: string;
+}
+
+export function applySettings(opts: ApplyOptions): ApplyResult {
+  const path = opts.path ?? CLAUDE_SETTINGS_PATH;
   const settings = readSettings(path);
 
   let backup: string | undefined;
@@ -79,37 +95,77 @@ export function installHooks(
 
   const added: string[] = [];
   const unchanged: string[] = [];
-
-  for (const { event, command } of hooks) {
-    const { group } = ensureGroup(settings, event);
-    const wasAdded = upsertHook(group, command);
-    if (wasAdded) added.push(event);
+  for (const { event, command } of opts.hooks) {
+    const group = ensureGroup(settings, event);
+    if (upsertHookInGroup(group, command)) added.push(event);
     else unchanged.push(event);
+  }
+
+  let statusLine: StatusLineOutcome = { kind: "unchanged" };
+  if (opts.statusLine) {
+    const desired = opts.statusLine.command;
+    const existing = settings.statusLine;
+    if (!existing) {
+      settings.statusLine = { type: "command", command: desired };
+      statusLine = { kind: "added", command: desired };
+    } else if (existing.command === desired) {
+      statusLine = { kind: "unchanged" };
+    } else if (
+      existing.command &&
+      (existing.command.includes(HOOK_MARKER) ||
+        LEGACY_HOOK_MARKERS.some((m) => existing.command!.includes(m)))
+    ) {
+      settings.statusLine = { ...existing, type: "command", command: desired };
+      statusLine = { kind: "added", command: desired };
+    } else {
+      statusLine = {
+        kind: "skipped",
+        existingCommand: existing.command ?? "(unknown)",
+      };
+    }
   }
 
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
 
-  return { added, unchanged, backup };
+  return { hooks: { added, unchanged }, statusLine, backup };
 }
 
-export function uninstallHooks(path: string = CLAUDE_SETTINGS_PATH): number {
+export function uninstallAll(path: string = CLAUDE_SETTINGS_PATH): {
+  hooks: number;
+  statusLine: boolean;
+} {
+  if (!existsSync(path)) return { hooks: 0, statusLine: false };
   const settings = readSettings(path);
-  if (!settings.hooks) return 0;
+  let removedHooks = 0;
+  let removedStatusLine = false;
 
-  let removed = 0;
-  for (const event of Object.keys(settings.hooks)) {
-    for (const group of settings.hooks[event]!) {
-      const before = group.hooks.length;
-      group.hooks = group.hooks.filter((h) => !isClawdHook(h));
-      removed += before - group.hooks.length;
+  if (settings.hooks) {
+    for (const event of Object.keys(settings.hooks)) {
+      for (const group of settings.hooks[event]!) {
+        const before = group.hooks.length;
+        group.hooks = group.hooks.filter((h) => !isClawdHook(h));
+        removedHooks += before - group.hooks.length;
+      }
+      settings.hooks[event] = settings.hooks[event]!.filter(
+        (g) => g.hooks.length > 0,
+      );
+      if (settings.hooks[event]!.length === 0) delete settings.hooks[event];
     }
-    settings.hooks[event] = settings.hooks[event]!.filter(
-      (g) => g.hooks.length > 0,
-    );
-    if (settings.hooks[event]!.length === 0) delete settings.hooks[event];
   }
 
-  writeFileSync(path, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
-  return removed;
+  const slCmd = settings.statusLine?.command;
+  if (
+    slCmd &&
+    (slCmd.includes(HOOK_MARKER) ||
+      LEGACY_HOOK_MARKERS.some((m) => slCmd.includes(m)))
+  ) {
+    delete settings.statusLine;
+    removedStatusLine = true;
+  }
+
+  if (removedHooks > 0 || removedStatusLine) {
+    writeFileSync(path, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+  }
+  return { hooks: removedHooks, statusLine: removedStatusLine };
 }

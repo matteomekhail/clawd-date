@@ -32,6 +32,19 @@ export const upsert = mutation({
   },
 });
 
+export const heartbeat = mutation({
+  args: { githubId: v.string() },
+  handler: async (ctx, { githubId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_github_id", (q) => q.eq("githubId", githubId))
+      .first();
+    if (!user) return null;
+    await ctx.db.patch(user._id, { lastActiveAt: Date.now() });
+    return user._id;
+  },
+});
+
 export const list = query({
   args: {},
   handler: (ctx) => ctx.db.query("users").take(50),

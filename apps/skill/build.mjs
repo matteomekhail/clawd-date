@@ -1,11 +1,18 @@
 import { build, context } from "esbuild";
-import { chmodSync } from "node:fs";
+import { chmodSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 
 const watch = process.argv.includes("--watch");
 
 /** @type {import('esbuild').BuildOptions} */
-const common = {
+const config = {
+  entryPoints: [
+    "src/index.ts",
+    "src/bin.ts",
+    "src/commands/swipe.tsx",
+    "src/commands/matches.tsx",
+  ],
   bundle: true,
+  splitting: true,
   platform: "node",
   format: "esm",
   target: "node20",
@@ -13,28 +20,33 @@ const common = {
   sourcemap: true,
   logLevel: "info",
   packages: "external",
+  jsx: "automatic",
 };
 
-const entries = [
-  { entryPoints: ["src/index.ts"] },
-  {
-    entryPoints: ["src/bin.ts"],
-    banner: { js: "#!/usr/bin/env node" },
-  },
-];
+function fixupBin() {
+  const path = "dist/bin.js";
+  if (!existsSync(path)) return;
+  const content = readFileSync(path, "utf8");
+  if (!content.startsWith("#!")) {
+    writeFileSync(path, `#!/usr/bin/env node\n${content}`);
+  }
+  chmodSync(path, 0o755);
+}
 
 if (watch) {
-  for (const e of entries) {
-    const ctx = await context({ ...common, ...e });
-    await ctx.watch();
-  }
+  const ctx = await context({
+    ...config,
+    plugins: [
+      {
+        name: "fixup-bin",
+        setup(b) {
+          b.onEnd(() => fixupBin());
+        },
+      },
+    ],
+  });
+  await ctx.watch();
 } else {
-  for (const e of entries) {
-    await build({ ...common, ...e });
-  }
-  try {
-    chmodSync("dist/bin.js", 0o755);
-  } catch {
-    /* file may not exist yet */
-  }
+  await build(config);
+  fixupBin();
 }

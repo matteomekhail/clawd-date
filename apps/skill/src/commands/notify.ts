@@ -1,28 +1,52 @@
 import { readConfig } from "../lib/config.js";
-import { getUnreadMatches } from "../lib/api.js";
+import { writeCache } from "../lib/cache.js";
+import { getStatus, postHeartbeat } from "../lib/api.js";
+
+const BOLD_MAGENTA = "\x1b[1m\x1b[35m";
+const DIM = "\x1b[2m";
+const RESET = "\x1b[0m";
 
 export async function runNotify(): Promise<void> {
   const cfg = readConfig();
   if (!cfg) return;
 
-  let matches: Awaited<ReturnType<typeof getUnreadMatches>> = [];
+  postHeartbeat(cfg.apiUrl, cfg.githubId).catch(() => {});
+
+  let status;
   try {
-    matches = await getUnreadMatches(cfg.apiUrl, cfg.githubId);
+    status = await getStatus(cfg.apiUrl, cfg.githubId);
   } catch {
     return;
   }
 
-  if (matches.length === 0) return;
+  writeCache(status);
 
-  const verb = matches.length === 1 ? "match" : "match";
-  const names = matches
-    .slice(0, 3)
-    .map((m) => `@${m.username}`)
-    .join(", ");
-  const more = matches.length > 3 ? ` +${matches.length - 3} altri` : "";
+  const parts: string[] = [];
 
-  process.stderr.write(
-    `\n💘 clawd.date — ${matches.length} nuovo ${verb}: ${names}${more}\n` +
-      `   Apri https://clawd.date/matches per vederli\n\n`,
-  );
+  if (status.unreadMatches > 0) {
+    const names = status.unreadUsernames
+      .slice(0, 3)
+      .map((m) => `@${m}`)
+      .join(", ");
+    const more =
+      status.unreadMatches > status.unreadUsernames.length
+        ? `, +${status.unreadMatches - status.unreadUsernames.length}`
+        : "";
+    const label = status.unreadMatches === 1 ? "new match" : "new matches";
+    parts.push(
+      `${BOLD_MAGENTA}${status.unreadMatches} ${label}${RESET} (${names}${more})`,
+    );
+  }
+
+  if (status.candidates > 0) parts.push(`${status.candidates} to swipe`);
+
+  const liveMatch = status.activeMatches[0];
+  const liveCandidate = status.activeCandidates[0];
+  if (liveMatch) parts.push(`🟢 @${liveMatch} (match) active`);
+  else if (liveCandidate) parts.push(`🟢 @${liveCandidate} active`);
+
+  if (parts.length === 0) parts.push(`${DIM}all caught up${RESET}`);
+  parts.push(`${DIM}run \`clawd-date\`${RESET}`);
+
+  process.stderr.write(`\n💘 clawd.date — ${parts.join(" • ")}\n\n`);
 }

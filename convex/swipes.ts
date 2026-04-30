@@ -1,0 +1,153 @@
+import { v } from "convex/values";
+import { mutation, query } from "./_generated/server";
+
+const swipeAction = v.union(v.literal("like"), v.literal("pass"));
+
+export const record = mutation({
+  args: {
+    fromUserId: v.id("users"),
+    toUserId: v.id("users"),
+    action: swipeAction,
+  },
+  handler: async (ctx, { fromUserId, toUserId, action }) => {
+    const existing = await ctx.db
+      .query("swipes")
+      .withIndex("by_pair", (q) =>
+        q.eq("fromUserId", fromUserId).eq("toUserId", toUserId),
+      )
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, { action });
+    } else {
+      await ctx.db.insert("swipes", { fromUserId, toUserId, action });
+    }
+
+    if (action !== "like") return { mutual: false };
+
+    const reciprocal = await ctx.db
+      .query("swipes")
+      .withIndex("by_pair", (q) =>
+        q.eq("fromUserId", toUserId).eq("toUserId", fromUserId),
+      )
+      .first();
+
+    if (!reciprocal || reciprocal.action !== "like") return { mutual: false };
+
+    const existingNotif = await ctx.db
+      .query("notifications")
+      .withIndex("by_user", (q) => q.eq("userId", fromUserId))
+      .filter((q) => q.eq(q.field("matchUserId"), toUserId))
+      .first();
+    if (!existingNotif) {
+      await ctx.db.insert("notifications", {
+        userId: fromUserId,
+        matchUserId: toUserId,
+      });
+      await ctx.db.insert("notifications", {
+        userId: toUserId,
+        matchUserId: fromUserId,
+      });
+    }
+
+    return { mutual: true };
+  },
+});
+
+export const discoverFor = query({
+  args: { githubId: v.string() },
+  handler: async (ctx, { githubId }) => {
+    const me = await ctx.db
+      .query("users")
+      .withIndex("by_github_id", (q) => q.eq("githubId", githubId))
+      .first();
+    if (!me) return [];
+
+    const swiped = await ctx.db
+      .query("swipes")
+      .withIndex("by_from", (q) => q.eq("fromUserId", me._id))
+      .collect();
+    const swipedIds = new Set(swiped.map((s) => s.toUserId));
+
+    const everyone = await ctx.db.query("users").take(200);
+    const myLangs = new Set(me.languages);
+    const myTools = new Set(me.tools);
+
+    const ranked: Array<{
+      id: string;
+      githubId: string;
+      username: string;
+      avatarUrl?: string;
+      bio?: string;
+      languages: string[];
+      tools: string[];
+      sharedLanguages: string[];
+      sharedTools: string[];
+      score: number;
+      lastActiveAt?: number;
+    }> = [];
+
+    for (const u of everyone) {
+      if (u._id === me._id || swipedIds.has(u._id)) continue;
+      const sharedLanguages = u.languages.filter((l) => myLangs.has(l));
+      const sharedTools = u.tools.filter((t) => myTools.has(t));
+      ranked.push({
+        id: u._id,
+        githubId: u.githubId,
+        username: u.username,
+        avatarUrl: u.avatarUrl,
+        bio: u.bio,
+        languages: u.languages,
+        tools: u.tools,
+        sharedLanguages,
+        sharedTools,
+        score: sharedLanguages.length * 2 + sharedTools.length,
+        lastActiveAt: u.lastActiveAt,
+      });
+    }
+
+    ranked.sort((a, b) => b.score - a.score);
+    return ranked.slice(0, 50);
+  },
+});
+
+export const mutualFor = query({
+  args: { githubId: v.string() },
+  handler: async (ctx, { githubId }) => {
+    const me = await ctx.db
+      .query("users")
+      .withIndex("by_github_id", (q) => q.eq("githubId", githubId))
+      .first();
+    if (!me) return [];
+
+    const myLikes = await ctx.db
+      .query("swipes")
+      .withIndex("by_from", (q) => q.eq("fromUserId", me._id))
+      .collect();
+
+    const result = [];
+    for (const swipe of myLikes) {
+      if (swipe.action !== "like") continue;
+      const reciprocal = await ctx.db
+        .query("swipes")
+        .withIndex("by_pair", (q) =>
+          q.eq("fromUserId", swipe.toUserId).eq("toUserId", me._id),
+        )
+        .first();
+      if (!reciprocal || reciprocal.action !== "like") continue;
+      const other = await ctx.db.get(swipe.toUserId);
+      if (other) {
+        result.push({
+          id: other._id,
+          githubId: other.githubId,
+          username: other.username,
+          avatarUrl: other.avatarUrl,
+          bio: other.bio,
+          languages: other.languages,
+          tools: other.tools,
+          lastActiveAt: other.lastActiveAt,
+        });
+      }
+    }
+    return result;
+  },
+});

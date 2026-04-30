@@ -1,10 +1,10 @@
 {
-  "name": "clawd-match",
+  "name": "clawd-date",
   "version": "0.0.1",
   "description": "Claude Code skill for clawd.date — matchmaking for devs based on your Claude Code history",
   "type": "module",
   "bin": {
-    "clawd-match": "./dist/bin.js"
+    "clawd-date": "./dist/bin.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -21,10 +21,14 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@clawd-date/shared": "workspace:*"
+    "@clawd-date/shared": "workspace:*",
+    "ink": "^6.0.1",
+    "ink-spinner": "^5.0.0",
+    "react": "^19.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@types/react": "^19.0.0",
     "esbuild": "^0.24.2",
     "typescript": "^5.7.3"
   },
