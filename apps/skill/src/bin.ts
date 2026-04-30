@@ -9,12 +9,16 @@ async function main(): Promise<void> {
   const cmd = process.argv[2];
 
   switch (cmd) {
-    case "init":
-      await runInit();
+    case "init": {
+      const initArgs = process.argv.slice(3);
+      await runInit({ skipSettings: initArgs.includes("--no-settings") });
       return;
-    case "uninstall":
-      await runUninstall();
+    }
+    case "uninstall": {
+      const uninstallArgs = process.argv.slice(3);
+      await runUninstall({ skipSettings: uninstallArgs.includes("--no-settings") });
       return;
+    }
     case "ingest":
       await runIngest();
       return;
@@ -35,6 +39,11 @@ async function main(): Promise<void> {
       await runMatches();
       return;
     }
+    case "profile": {
+      const { runProfile } = await import("./commands/profile.js");
+      await runProfile();
+      return;
+    }
     case "--help":
     case "-h":
       process.stdout.write(
@@ -43,6 +52,7 @@ async function main(): Promise<void> {
           `  clawd-date              Open swipe TUI (default)\n` +
           `  clawd-date swipe        Swipe candidates (Ink TUI)\n` +
           `  clawd-date matches      View mutual matches\n` +
+          `  clawd-date profile      Set your gender & who you want to see\n` +
           `  clawd-date init         Setup hooks + statusline + identity\n` +
           `  clawd-date uninstall    Remove hooks, statusline, slash command, config\n` +
           `  clawd-date ingest       (hook) Ship session activity\n` +

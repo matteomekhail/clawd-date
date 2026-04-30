@@ -11,6 +11,7 @@
 import type * as auth from "../auth.js";
 import type * as http from "../http.js";
 import type * as notifications from "../notifications.js";
+import type * as preferences from "../preferences.js";
 import type * as seed from "../seed.js";
 import type * as sessions from "../sessions.js";
 import type * as status from "../status.js";
@@ -27,6 +28,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   http: typeof http;
   notifications: typeof notifications;
+  preferences: typeof preferences;
   seed: typeof seed;
   sessions: typeof sessions;
   status: typeof status;

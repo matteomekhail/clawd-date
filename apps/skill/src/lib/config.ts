@@ -8,7 +8,13 @@ import {
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 
-export const CONFIG_PATH = join(homedir(), ".config", "clawd-date", "config.json");
+const HAS_EXPLICIT_CONFIG_PATH =
+  typeof process.env.CLAWD_DATE_CONFIG_PATH === "string" &&
+  process.env.CLAWD_DATE_CONFIG_PATH.length > 0;
+
+export const CONFIG_PATH = HAS_EXPLICIT_CONFIG_PATH
+  ? (process.env.CLAWD_DATE_CONFIG_PATH as string)
+  : join(homedir(), ".config", "clawd-date", "config.json");
 const LEGACY_CONFIG_PATH = join(homedir(), ".config", "clawd-match", "config.json");
 
 export interface LocalConfig {
@@ -37,6 +43,10 @@ function parseConfig(path: string): LocalConfig | null {
 
 export function readConfig(): LocalConfig | null {
   if (existsSync(CONFIG_PATH)) return parseConfig(CONFIG_PATH);
+  // When CLAWD_DATE_CONFIG_PATH is set (dev wrapper), don't migrate the
+  // legacy ~/.config/clawd-match/config.json — that would silently pull a
+  // global/prod token into the dev-isolated config file.
+  if (HAS_EXPLICIT_CONFIG_PATH) return null;
   if (existsSync(LEGACY_CONFIG_PATH)) {
     const legacy = parseConfig(LEGACY_CONFIG_PATH);
     if (legacy) {
@@ -61,7 +71,10 @@ export function writeConfig(config: LocalConfig): void {
 }
 
 export function readLegacyApiUrl(): string | null {
-  for (const path of [CONFIG_PATH, LEGACY_CONFIG_PATH]) {
+  const paths = HAS_EXPLICIT_CONFIG_PATH
+    ? [CONFIG_PATH]
+    : [CONFIG_PATH, LEGACY_CONFIG_PATH];
+  for (const path of paths) {
     if (!existsSync(path)) continue;
     try {
       const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;

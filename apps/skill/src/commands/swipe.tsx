@@ -229,7 +229,7 @@ function HelpView(): React.ReactElement {
   );
 }
 
-function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
+export function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
   const { exit } = useApp();
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -270,6 +270,21 @@ function App({ cfg }: { cfg: LocalConfig }): React.ReactElement {
     setBusy(true);
     try {
       const result = await postSwipe(cfg.apiUrl, cfg.authToken, c.githubId, action);
+      if (!result.ok) {
+        // Backend rejected the swipe (incompatible prefs after a mid-session
+        // change, or the target vanished). Skip the card so the deck moves
+        // forward, and refresh on incompatibility since the rest of the deck
+        // may now be stale.
+        setIndex((i) => i + 1);
+        setFlash(
+          result.skip === "incompatible"
+            ? `Skipped @${c.username} — preferences changed. Refreshing…`
+            : `Skipped @${c.username} — ${result.reason}.`,
+        );
+        setTimeout(() => setFlash(null), 2500);
+        if (result.skip === "incompatible") loadCandidates();
+        return;
+      }
       setStats((s) => ({
         likes: s.likes + (action === "like" ? 1 : 0),
         passes: s.passes + (action === "pass" ? 1 : 0),

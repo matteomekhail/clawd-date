@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
+import { isCompatible } from "./preferences";
 
 const swipeAction = v.union(v.literal("like"), v.literal("pass"));
 
@@ -14,8 +15,10 @@ export const recordByGithubId = internalMutation({
       .query("users")
       .withIndex("by_github_id", (q) => q.eq("githubId", targetGithubId))
       .first();
-    if (!target) return { ok: false as const, reason: "user not found" };
-    if (target._id === fromUserId) return { ok: false as const, reason: "cannot swipe self" };
+    if (!target)
+      return { ok: false as const, code: "not_found" as const, reason: "user not found" };
+    if (target._id === fromUserId)
+      return { ok: false as const, code: "self" as const, reason: "cannot swipe self" };
 
     const toUserId = target._id;
 
@@ -32,6 +35,21 @@ export const recordByGithubId = internalMutation({
     }
 
     if (action !== "like") return { ok: true as const, mutual: false };
+
+    // Compatibility is enforced only on `like`: a pass is harmless cleanup
+    // even on a stale-deck card that became incompatible, and shouldn't
+    // dead-end the swipe TUI. A like that would create a match must still
+    // respect both sides' current preferences.
+    const me = await ctx.db.get(fromUserId);
+    if (!me)
+      return { ok: false as const, code: "not_found" as const, reason: "user not found" };
+    if (!isCompatible(me, target)) {
+      return {
+        ok: false as const,
+        code: "incompatible" as const,
+        reason: "incompatible preferences",
+      };
+    }
 
     const reciprocal = await ctx.db
       .query("swipes")
@@ -96,6 +114,7 @@ export const discoverFor = internalQuery({
 
     for (const u of everyone) {
       if (u._id === me._id || swipedIds.has(u._id)) continue;
+      if (!isCompatible(me, u)) continue;
       const sharedLanguages = u.languages.filter((l) => myLangs.has(l));
       const sharedTools = u.tools.filter((t) => myTools.has(t));
       ranked.push({

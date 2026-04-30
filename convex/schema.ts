@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { genderValidator } from "./preferences";
 
 export default defineSchema({
   users: defineTable({
@@ -10,6 +11,8 @@ export default defineSchema({
     languages: v.array(v.string()),
     tools: v.array(v.string()),
     lastActiveAt: v.optional(v.number()),
+    gender: v.optional(genderValidator),
+    genderPreference: v.optional(v.array(genderValidator)),
   }).index("by_github_id", ["githubId"]),
 
   sessions: defineTable({

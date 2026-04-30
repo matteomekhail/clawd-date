@@ -43,19 +43,30 @@ function purgeDir(path: string): void {
   tryRemoveEmptyDir(path);
 }
 
-export async function runUninstall(): Promise<void> {
+export interface RunUninstallOptions {
+  // Skip removing Claude Code hooks + statusline. Used by the dev wrapper
+  // (`pnpm cli`, `clawd-date-dev`) so an uninstall of the dev install does
+  // not wipe the production hooks from ~/.claude/settings.json.
+  skipSettings?: boolean;
+}
+
+export async function runUninstall(opts: RunUninstallOptions = {}): Promise<void> {
   console.log("clawd-date uninstall\n");
 
-  const settingsResult = uninstallAll();
-  if (settingsResult.hooks > 0) {
-    console.log(`✅ Removed ${settingsResult.hooks} hook(s) from ~/.claude/settings.json`);
+  if (opts.skipSettings) {
+    console.log("ℹ️  Dev mode: skipping ~/.claude/settings.json (hooks + statusline left untouched)");
   } else {
-    console.log("ℹ️  No clawd-date hooks found in ~/.claude/settings.json");
-  }
-  if (settingsResult.statusLine) {
-    console.log("✅ Removed statusline");
-  } else {
-    console.log("ℹ️  No clawd-date statusline to remove");
+    const settingsResult = uninstallAll();
+    if (settingsResult.hooks > 0) {
+      console.log(`✅ Removed ${settingsResult.hooks} hook(s) from ~/.claude/settings.json`);
+    } else {
+      console.log("ℹ️  No clawd-date hooks found in ~/.claude/settings.json");
+    }
+    if (settingsResult.statusLine) {
+      console.log("✅ Removed statusline");
+    } else {
+      console.log("ℹ️  No clawd-date statusline to remove");
+    }
   }
 
   if (existsSync(LEGACY_SLASH_COMMAND_PATH)) {

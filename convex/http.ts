@@ -3,6 +3,7 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { identityFromRequest } from "./auth";
 import type { DataModel, Id } from "./_generated/dataModel";
+import { type Gender, isGender } from "./preferences";
 
 type HttpCtx = GenericActionCtx<DataModel>;
 
@@ -174,8 +175,70 @@ http.route({
       targetGithubId: body.targetGithubId,
       action: body.action,
     });
-    if (!result.ok) return json({ error: result.reason }, 404);
+    if (!result.ok) {
+      // Map structural code → HTTP status. Reason strings are for humans;
+      // never branch on them — they will drift.
+      const status = result.code === "incompatible" ? 409 : 404;
+      return json({ error: result.reason }, status);
+    }
     return json({ mutual: result.mutual });
+  }),
+});
+
+http.route({
+  path: "/profile",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const userId = await authedUserId(ctx, request);
+    if (!userId) return unauthorized();
+    const profile = await ctx.runQuery(internal.users.myProfile, { userId });
+    return json(profile ?? { gender: null, genderPreference: [] });
+  }),
+});
+
+http.route({
+  path: "/profile",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const userId = await authedUserId(ctx, request);
+    if (!userId) return unauthorized();
+
+    let body: { gender?: unknown; genderPreference?: unknown };
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: "invalid body" }, 400);
+    }
+
+    // null = explicit clear, undefined / missing = leave unchanged.
+    let gender: Gender | null | undefined;
+    if (body.gender === null) {
+      gender = null;
+    } else if (body.gender !== undefined) {
+      if (!isGender(body.gender)) return json({ error: "invalid gender" }, 400);
+      gender = body.gender;
+    }
+
+    // null OR [] = clear (no filter). The TUI guards against saving an
+    // empty array, but a hand-rolled API call would otherwise persist []
+    // and silently match everyone — close that backdoor here.
+    let genderPreference: Gender[] | null | undefined;
+    if (body.genderPreference === null) {
+      genderPreference = null;
+    } else if (body.genderPreference !== undefined) {
+      if (!Array.isArray(body.genderPreference) || !body.genderPreference.every(isGender)) {
+        return json({ error: "invalid genderPreference" }, 400);
+      }
+      const deduped = Array.from(new Set(body.genderPreference)) as Gender[];
+      genderPreference = deduped.length === 0 ? null : deduped;
+    }
+
+    await ctx.runMutation(internal.users.setPreferences, {
+      userId,
+      gender,
+      genderPreference,
+    });
+    return json({ ok: true });
   }),
 });
 

@@ -62,6 +62,13 @@ export interface ExchangeResult {
   username: string;
 }
 
+export type Gender = "man" | "woman" | "other";
+
+export interface Profile {
+  gender: Gender | null;
+  genderPreference: Gender[];
+}
+
 export class UnauthorizedError extends Error {
   constructor() {
     super("clawd-date token is missing or expired");
@@ -170,19 +177,62 @@ export async function getDiscover(
   return data.candidates;
 }
 
+export type SwipeResult =
+  | { ok: true; mutual: boolean }
+  | { ok: false; skip: "incompatible" | "not_found"; reason: string };
+
 export async function postSwipe(
   apiUrl: string,
   token: string,
   targetGithubId: string,
   action: "like" | "pass",
-): Promise<{ mutual: boolean }> {
+): Promise<SwipeResult> {
   const res = await fetch(`${trimUrl(apiUrl)}/swipe`, {
     method: "POST",
     headers: { "content-type": "application/json", ...authHeaders(token) },
     body: JSON.stringify({ targetGithubId, action }),
   });
-  await ensureOk(res, "swipe");
-  return res.json() as Promise<{ mutual: boolean }>;
+  if (res.ok) {
+    const data = (await res.json()) as { mutual: boolean };
+    return { ok: true, mutual: data.mutual };
+  }
+  if (res.status === 401) throw new UnauthorizedError();
+  if (res.status === 409 || res.status === 404) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    return {
+      ok: false,
+      skip: res.status === 409 ? "incompatible" : "not_found",
+      reason: data.error ?? `swipe rejected (${res.status})`,
+    };
+  }
+  throw new Error(`swipe failed: ${res.status} ${await res.text()}`);
+}
+
+export async function getProfile(
+  apiUrl: string,
+  token: string,
+): Promise<Profile> {
+  const res = await fetch(`${trimUrl(apiUrl)}/profile`, {
+    headers: authHeaders(token),
+  });
+  await ensureOk(res, "profile");
+  return res.json() as Promise<Profile>;
+}
+
+export async function postProfile(
+  apiUrl: string,
+  token: string,
+  payload: {
+    gender?: Gender | null;
+    genderPreference?: Gender[] | null;
+  },
+): Promise<void> {
+  const res = await fetch(`${trimUrl(apiUrl)}/profile`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...authHeaders(token) },
+    body: JSON.stringify(payload),
+  });
+  await ensureOk(res, "profile update");
 }
 
 export async function getMutualMatches(

@@ -1,9 +1,15 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import { applySettings } from "../lib/settings.js";
-import { writeConfig, readConfig, readLegacyApiUrl } from "../lib/config.js";
+import {
+  CONFIG_PATH,
+  writeConfig,
+  readConfig,
+  readLegacyApiUrl,
+} from "../lib/config.js";
 import { exchangeGithubToken } from "../lib/api.js";
 
-const DEFAULT_API_URL = "https://cautious-dachshund-642.convex.site";
+// Substituted at build time from CLAWD_PROD_API_URL (see build.mjs).
+const DEFAULT_API_URL = __PROD_API_URL__;
 const GITHUB_CLIENT_ID = "Ov23liN8Dl4BF9lziPsY";
 const DEVICE_CODE_URL = "https://github.com/login/device/code";
 const ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
@@ -103,16 +109,49 @@ async function deviceFlow(): Promise<string> {
   throw new Error("authorization timed out — re-run `clawd-date init`");
 }
 
-export async function runInit(): Promise<void> {
+export interface RunInitOptions {
+  // Skip writing Claude Code hooks + statusline. Used by the dev wrapper
+  // (`pnpm cli`) so a local-repo init doesn't overwrite the global CLI's
+  // production hooks with absolute repo paths.
+  skipSettings?: boolean;
+}
+
+// Precedence: env override (set by `clawd-date-dev` / `pnpm cli`) > config
+// already on disk > pre-rename legacy config > the prod URL baked into the
+// binary at build time. Exported for regression tests — historically the env
+// override path was easy to miss and shipped binaries silently pointed at
+// prod.
+export function resolveApiUrl(input: {
+  envUrl: string | undefined;
+  existingUrl: string | undefined;
+  legacyUrl: string | null;
+  defaultUrl: string;
+}): string {
+  return (
+    input.envUrl ??
+    input.existingUrl ??
+    input.legacyUrl ??
+    input.defaultUrl
+  );
+}
+
+export async function runInit(opts: RunInitOptions = {}): Promise<void> {
   console.log("clawd-date setup\n");
 
   const existing = readConfig();
-  const apiUrl =
-    process.env.CLAWD_MATCH_API_URL ??
-    existing?.apiUrl ??
-    readLegacyApiUrl() ??
-    DEFAULT_API_URL;
+  const apiUrl = resolveApiUrl({
+    envUrl: process.env.CLAWD_MATCH_API_URL,
+    existingUrl: existing?.apiUrl,
+    legacyUrl: readLegacyApiUrl(),
+    defaultUrl: DEFAULT_API_URL,
+  });
 
+  const dim = "\x1b[2m";
+  const reset = "\x1b[0m";
+  console.log(`  ${dim}Backend: ${apiUrl}${reset}`);
+  if (opts.skipSettings) {
+    console.log(`  ${dim}Dev mode: hooks + statusline will not be installed.${reset}`);
+  }
   console.log("  We'll authenticate you with GitHub via Device Flow.");
   console.log("  No tokens or passwords are typed into this terminal.");
 
@@ -128,6 +167,19 @@ export async function runInit(): Promise<void> {
     authToken: exchanged.token,
   });
 
+  console.log("");
+  console.log(`✅ Authenticated as @${exchanged.username}`);
+  console.log(`✅ Config saved → ${CONFIG_PATH}`);
+
+  if (opts.skipSettings) {
+    console.log(
+      "ℹ️  Skipped Claude Code hooks/statusline (dev mode). " +
+        "To run hooks against this dev backend, invoke them manually with `pnpm cli ingest` / `pnpm cli notify`.",
+    );
+    console.log("\nDone.");
+    return;
+  }
+
   const result = applySettings({
     hooks: [
       { event: "SessionStart", command: "clawd-date notify" },
@@ -136,9 +188,6 @@ export async function runInit(): Promise<void> {
     statusLine: { command: "clawd-date status" },
   });
 
-  console.log("");
-  console.log(`✅ Authenticated as @${exchanged.username}`);
-  console.log("✅ Config saved to ~/.config/clawd-date/config.json");
   if (result.backup) {
     console.log(`📦 Backup of settings.json → ${result.backup}`);
   }

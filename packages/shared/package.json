@@ -13,6 +13,7 @@
   },
   "scripts": {
     "build": "tsc --noEmit",
+    "dev": "tsc --noEmit --watch --preserveWatchOutput",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit"
   },

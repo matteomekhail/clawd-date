@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalQuery } from "./_generated/server";
+import { isCompatible } from "./preferences";
 
 const ACTIVE_WINDOW_MS = 5 * 60 * 1000;
 
@@ -41,7 +42,7 @@ export const statusFor = internalQuery({
 
     const everyone = await ctx.db.query("users").take(200);
     const candidates = everyone.filter(
-      (u) => u._id !== me._id && !swipedSet.has(u._id),
+      (u) => u._id !== me._id && !swipedSet.has(u._id) && isCompatible(me, u),
     );
 
     const myLikes = swiped.filter((s) => s.action === "like");

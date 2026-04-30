@@ -1,13 +1,10 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { homedir } from "node:os";
 import { join, dirname } from "node:path";
+import { CONFIG_PATH } from "./config.js";
 
-const CACHE_PATH = join(
-  homedir(),
-  ".config",
-  "clawd-date",
-  "status-cache.json",
-);
+// Co-located with the auth config so dev (CLAWD_DATE_CONFIG_PATH) and prod
+// installs each get their own cache and never overwrite each other.
+const CACHE_PATH = join(dirname(CONFIG_PATH), "status-cache.json");
 
 interface CacheEntry<T> {
   fetchedAt: number;
