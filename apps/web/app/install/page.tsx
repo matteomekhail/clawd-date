@@ -36,7 +36,7 @@ export default function InstallPage() {
 
         <SectionPrereq />
         <SectionRun />
-        <SectionGlobal />
+        <SectionAlternative />
         <SectionWhatHappens />
         <SectionUninstall />
 
@@ -103,18 +103,28 @@ function SectionPrereq() {
 function SectionRun() {
   return (
     <Section>
-      <SectionHeading>Run it.</SectionHeading>
+      <SectionHeading>Two commands.</SectionHeading>
       <Paragraph>
-        from any directory. no folder to <Code>cd</Code> into, no project to
-        clone. <Code>npx</Code> grabs the latest version and throws it away when
-        it&rsquo;s done.
+        first one drops the binary on your <Code>$PATH</Code>. second one logs
+        you in via github device flow and wires up the claude code hooks.
       </Paragraph>
 
-      <CodeBlock>{`$ npx clawd-date init`}</CodeBlock>
+      <CodeBlock>{`$ npm i -g clawd-date
+$ clawd-date init`}</CodeBlock>
 
       <Paragraph>
-        the cli prints a short code and a github url. open the url, paste the
-        code, click authorize. that&rsquo;s the whole login.
+        prefer a different package manager? same package, same flags:
+      </Paragraph>
+
+      <div className="mt-7 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <ManagerCard manager="npm" command="npm i -g clawd-date" />
+        <ManagerCard manager="pnpm" command="pnpm add -g clawd-date" />
+        <ManagerCard manager="bun" command="bun add -g clawd-date" />
+      </div>
+
+      <Paragraph>
+        on <Code>init</Code> the cli prints a short code and a github url. open
+        the url, paste the code, click authorize. that&rsquo;s the whole login.
       </Paragraph>
 
       <CodeBlock>{`  Open this URL in your browser:
@@ -132,30 +142,33 @@ function SectionRun() {
 
       <Paragraph>
         open a fresh claude code session. you&rsquo;ll see the statusline pick
-        up at the bottom. you&rsquo;re live.
+        up at the bottom. you&rsquo;re live. from now on:
       </Paragraph>
+
+      <CodeBlock>{`$ clawd-date           # open the swipe deck
+$ clawd-date matches   # see your mutual matches`}</CodeBlock>
     </Section>
   );
 }
 
-function SectionGlobal() {
+function SectionAlternative() {
   return (
     <Section>
-      <SectionHeading>If you prefer a global install.</SectionHeading>
+      <SectionHeading>Don&rsquo;t want to install globally?</SectionHeading>
       <Paragraph>
-        same end result. pick whichever package manager you already trust:
+        run it through <Code>npx</Code> instead. it grabs the latest version
+        each time and throws it away when it&rsquo;s done. fine for a one-off
+        try, slower for daily use because every <Code>clawd-date</Code> command
+        re-downloads.
       </Paragraph>
 
-      <div className="mt-7 grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <ManagerCard manager="npm" command="npm i -g clawd-date" />
-        <ManagerCard manager="pnpm" command="pnpm add -g clawd-date" />
-        <ManagerCard manager="bun" command="bun add -g clawd-date" />
-      </div>
+      <CodeBlock>{`$ npx clawd-date init      # one-shot, no global install`}</CodeBlock>
 
       <Paragraph>
-        then run <Code>clawd-date init</Code> once and you&rsquo;re set. future
-        commands like <Code>clawd-date</Code> (open the swipe deck) and{" "}
-        <Code>clawd-date matches</Code> work from any shell.
+        the hooks installed by <Code>init</Code> reference{" "}
+        <Code>clawd-date</Code> directly, not <Code>npx clawd-date</Code>{" "}
+        — so if you go this route, the statusline and session hooks
+        won&rsquo;t fire. for the full experience, go global.
       </Paragraph>
     </Section>
   );
@@ -204,14 +217,14 @@ function SectionUninstall() {
         <Code>clawd-match</Code> name.
       </Paragraph>
 
-      <CodeBlock>{`$ npx clawd-date uninstall`}</CodeBlock>
+      <CodeBlock>{`$ clawd-date uninstall      # remove hooks, config, cache
+$ npm uninstall -g clawd-date   # then drop the binary itself`}</CodeBlock>
 
       <Paragraph>
-        if you globally installed the binary, drop it with the same package
-        manager you used:
+        order matters: <Code>uninstall</Code> needs the binary to know what to
+        clean up. drop it after, with the same package manager you used to
+        install (<Code>pnpm rm -g</Code> / <Code>bun rm -g</Code> work too).
       </Paragraph>
-
-      <CodeBlock>{`$ npm uninstall -g clawd-date    # or pnpm rm -g clawd-date`}</CodeBlock>
 
       <Paragraph>
         your row in the database stays unless you ask. drop us a line and
@@ -250,7 +263,7 @@ function PageFooter() {
 
         <div className="inline-flex items-center gap-2 bg-ink text-bone px-3 py-1.5 text-[13px] tracking-tight font-mono select-all">
           <span aria-hidden className="text-amber/85">$</span>
-          <span>npx clawd-date init</span>
+          <span>npm i -g clawd-date</span>
         </div>
       </div>
     </footer>

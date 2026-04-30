@@ -90,7 +90,7 @@ function CTAs() {
     <div className="animate-fade-up [animation-delay:480ms] mt-9 sm:mt-10 flex flex-wrap items-center gap-x-6 gap-y-4">
       <div className="inline-flex items-center gap-2 bg-ink text-bone px-3 py-1.5 text-[13px] tracking-tight font-mono select-all">
         <span aria-hidden className="text-amber/85">$</span>
-        <span>npx clawd-date init</span>
+        <span>npm i -g clawd-date</span>
       </div>
 
       <a
